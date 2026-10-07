@@ -1,0 +1,13 @@
+[package]
+name = "sys-stats-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = { version = "0.4.45", features = ["serde"] }
+heed = { version = "0.22.1", features = ["serde-bincode"] }
+serde = { version = "1.0.229", features = ["derive"] }
+sysinfo = "0.39.6"
+uuid = { version = "1", features = ["v7"] }
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
