@@ -6,11 +6,13 @@ use axum::routing::post;
 use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
 use heed::Env;
 use std::sync::{Arc, Mutex};
+use tokio::sync::Notify;
 
 #[derive(Clone)]
 pub struct AppState {
     pub data_fetch: DataFetch,
     pub sampler: Arc<Mutex<Option<SamplerHandle>>>,
+    pub shutdown: Arc<Notify>,
 }
 
 impl AppState {
@@ -22,6 +24,7 @@ impl AppState {
                 system_db,
             },
             sampler: Arc::new(Mutex::new(None)),
+            shutdown: Arc::new(Notify::new()),
         }
     }
 
@@ -71,6 +74,7 @@ pub fn router(state: AppState) -> Router {
         .route("/system/status", get(status))
         .route("/system/start", post(start))
         .route("/system/stop", post(stop))
+        .route("/system/exit", post(exit))
         .with_state(state)
 }
 
@@ -96,6 +100,16 @@ async fn start(State(state): State<AppState>) -> (StatusCode, Json<&'static str>
     } else {
         (StatusCode::CONFLICT, Json("already running"))
     }
+}
+
+async fn exit(State(state): State<AppState>) -> (StatusCode, Json<&'static str>) {
+    let s = state.clone();
+    let _ = tokio::task::spawn_blocking(move || s.stop_sampler()).await;
+
+    // Tell axum to begin graceful shutdown
+    state.shutdown.notify_one();
+
+    (StatusCode::OK, Json("shutting down"))
 }
 
 async fn latest_system(State(state): State<AppState>) -> Result<Json<SystemInstance>, StatusCode> {

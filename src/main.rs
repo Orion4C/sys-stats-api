@@ -20,12 +20,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState::new(env, process_db, system_db);
 
+    let shutdown = state.shutdown.clone();
     let app = api::router(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            tokio::signal::ctrl_c().await.ok();
+        .with_graceful_shutdown(async move {
+            tokio::select! {
+                _ = shutdown.notified() => {}
+                _ = tokio::signal::ctrl_c() => {}
+            }
         })
         .await?;
 
@@ -39,6 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 // # stop
 // curl -X POST http://127.0.0.1:3000/system/stop
+
+// # exit
+// curl -X POST http://127.0.0.1:3000/system/exit
 
 // # check if it's running
 // curl http://127.0.0.1:3000/system/status
